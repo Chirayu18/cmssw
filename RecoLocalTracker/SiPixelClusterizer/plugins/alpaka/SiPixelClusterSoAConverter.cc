@@ -34,42 +34,42 @@ SiPixelClusterSoAConverter::SiPixelClusterSoAConverter(const edm::ParameterSet& 
       clusterSoAToken_(produces<edm::SiPixelClustersSoACollection>()) {}
 
 void SiPixelClusterSoAConverter::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
-//  edm::ParameterSetDescription desc;
-//  desc.add<edm::InputTag>("clusterSource", edm::InputTag("siPixelClusters"));
-//  descriptions.addWithDefaultLabel(desc);
+  edm::ParameterSetDescription desc;
+  desc.add<edm::InputTag>("clusterSource", edm::InputTag("siPixelClusters"));
+  descriptions.addWithDefaultLabel(desc);
 
 }
 
 void SiPixelClusterSoAConverter::produce(device::Event& iEvent, device::EventSetup const& iSetup) {
-//  const auto& pixelClusters = iEvent.get(clusterToken_);
-//  auto queue = iEvent.queue();
-//  int totalClusters = 0;
-//
-//  for (const auto& detSet : pixelClusters) {
-//    totalClusters += detSet.size();
-//  }
-//  cout<< "Total Clusters: "<< totalClusters<<endl;
-//
-//  SiPixelClustersSoACollection clustersSoA(queue, totalClusters);
-//
-//  size_t clusterIndex = 0;
-//
-//  for (const auto& detSet : pixelClusters) {
-//    for (const auto& cluster : detSet) {
-//      
-//      // Copy the cluster properties to the SoA collection
-//      clustersSoA.view()[clusterIndex].x() = cluster.x();
-//      clustersSoA.view()[clusterIndex].y() = cluster.y();
-//      clustersSoA.view()[clusterIndex].charge() = cluster.charge();
-//      clustersSoA.view()[clusterIndex].sizeX() = cluster.sizeX();
-//      clustersSoA.view()[clusterIndex].sizeY() = cluster.sizeY();
-//
-//      // Increment cluster index
-//      ++clusterIndex;
-//    }
-//  }
-//
-//  iEvent.emplace(clusterSoAToken_, std::move(clustersSoA)); 
+  const auto& pixelClusters = iEvent.get(clusterToken_);
+  auto queue = iEvent.queue();
+  int totalClusters = 0;
+
+  for (const auto& detSet : pixelClusters) {
+    totalClusters += detSet.size();
+  }
+  cout<< "Total Clusters: "<< totalClusters<<endl;
+
+  SiPixelClustersSoACollection clustersSoA(queue, totalClusters);
+
+  size_t clusterIndex = 0;
+
+  for (const auto& detSet : pixelClusters) {
+    for (const auto& cluster : detSet) {
+      
+      // Copy the cluster properties to the SoA collection
+      clustersSoA.view()[clusterIndex].x() = cluster.x();
+      clustersSoA.view()[clusterIndex].y() = cluster.y();
+      clustersSoA.view()[clusterIndex].charge() = cluster.charge();
+      clustersSoA.view()[clusterIndex].sizeX() = cluster.sizeX();
+      clustersSoA.view()[clusterIndex].sizeY() = cluster.sizeY();
+
+      // Increment cluster index
+      ++clusterIndex;
+    }
+  }
+
+  iEvent.emplace(clusterSoAToken_, std::move(clustersSoA)); 
 }
 
 }
