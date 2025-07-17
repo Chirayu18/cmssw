@@ -9,5 +9,9 @@ struct SiPixelMorphingConfig {
   std::array<int32_t, 9> kernel1;
   std::array<int32_t, 9> kernel2;
 };
+struct SiPixelMorphingConfig_new {
+  std::array<int32_t, 9> kernel1;
+  std::array<int32_t, 9> kernel2;
+};
 
 #endif  // RecoLocalTracker_SiPixelClusterizer_plugins_alpaka_SiPixelMorphingConfig_h

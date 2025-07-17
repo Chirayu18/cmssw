@@ -42,6 +42,8 @@
 #include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
 #include "Geometry/Records/interface/TrackerTopologyRcd.h"
 #include "DataFormats/DetId/interface/DetId.h"
+#include "HeterogeneousCore/AlpakaCore/interface/MoveToDeviceCache.h"
+#include "DataFormats/Portable/interface/PortableHostObject.h"
 
 #include "SiPixelRawToClusterKernel.h"
 #include "SiPixelMorphingConfig.h"
@@ -68,6 +70,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 		    const DetId& detId,
 		    const std::vector<region>& theBarrelRegions,
 		    const std::vector<region>& theEndcapRegions) const;
+    SiPixelMorphingConfig_new config(const edm::ParameterSet& iConfig);
 
     edm::EDGetTokenT<FEDRawDataCollection> rawGetToken_;
     edm::EDPutTokenT<SiPixelFormatterErrors> fmtErrorToken_;
@@ -96,11 +99,23 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     uint32_t nDigis_;
     const SiPixelClusterThresholds clusterThresholds_;
     SiPixelMorphingConfig digiMorphingConfig_;
+    SiPixelMorphingConfig_new digiMorphingConfig_new;
     edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> trackerTopologyToken_;
 
     const std::vector<region> theBarrelRegions_;
     const std::vector<region> theEndcapRegions_;
+    cms::alpakatools::MoveToDeviceCache<Device, PortableHostObject<SiPixelMorphingConfig_new>> morphingCache_;
+
   };
+  template <typename TrackerTraits>
+  SiPixelMorphingConfig_new SiPixelRawToCluster<TrackerTraits>::config(const edm::ParameterSet& iConfig)
+  {
+      edm::ParameterSet digiPSet = iConfig.getParameter<edm::ParameterSet>("DigiMorphing");
+      digiMorphingConfig_new.kernel1 = digiPSet.getParameter<std::array<int32_t, 9>>("kernel1");
+      digiMorphingConfig_new.kernel2 = digiPSet.getParameter<std::array<int32_t, 9>>("kernel2");
+      return digiMorphingConfig_new;
+  }
+
 
   template <typename TrackerTraits>
   SiPixelRawToCluster<TrackerTraits>::SiPixelRawToCluster(const edm::ParameterSet& iConfig)
@@ -124,7 +139,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                            static_cast<float>(iConfig.getParameter<double>("VCaltoElectronOffset_L1"))},
 	trackerTopologyToken_(esConsumes()),
 	theBarrelRegions_(parseRegions(iConfig.getParameter<std::vector<std::string>>("barrelRegions"), 3)),
-	theEndcapRegions_(parseRegions(iConfig.getParameter<std::vector<std::string>>("endcapRegions"), 4))
+	theEndcapRegions_(parseRegions(iConfig.getParameter<std::vector<std::string>>("endcapRegions"), 4)),
+	morphingCache_{PortableHostObject<SiPixelMorphingConfig_new>{cms::alpakatools::host(), config(iConfig)}}
 	{
     if (includeErrors_) {
       digiErrorPutToken_ = produces();
@@ -139,6 +155,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       edm::ParameterSet digiPSet = iConfig.getParameter<edm::ParameterSet>("DigiMorphing");
       digiMorphingConfig_.kernel1 = digiPSet.getParameter<std::array<int32_t, 9>>("kernel1");
       digiMorphingConfig_.kernel2 = digiPSet.getParameter<std::array<int32_t, 9>>("kernel2");
+      //morphingConfigCache_.emplace(cms::alpakatools::device(), digiMorphingConfig_new);
     }
   }
 
@@ -303,7 +320,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
 	    DetId detId(rawId);
 	    if (!skipDetId(tTopo, detId, theBarrelRegions_, theEndcapRegions_)) {
-		    digiMorphingConfig_.morphingModules_.push_back(rawId);
+		    digiMorphingConfig_.morphingModules.push_back(rawId);
 	    }
     }
 
@@ -398,6 +415,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     for (uint32_t i = 0; i < fedIds_.size(); ++i) {
       wordFedAppender.initializeWordFed(fedIds_[i], index[i], start[i], words[i]);
     }
+    const auto& configOnDevice = morphingCache_.get(iEvent.queue());
     if (doDigiMorphing_) {
       Algo_.template makePhase1ClustersAsync<SiPixelImageMorphDevice>(
           iEvent.queue(),
