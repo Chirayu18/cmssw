@@ -21,3 +21,9 @@ __init__.py
 
 #ignore mac specific file
 .DS_Store
+
+RecoLocalTracker/SiPixelClusterizer/run383631
+*.log
+RecoLocalTracker/SiPixelClusterizer/scramout
+RecoLocalTracker/SiPixelClusterizer/plugins/alpaka/PixelClustering.new.h
+RecoLocalTracker/SiPixelClusterizer/plugins/alpaka/SiPixelRawToClusterKernel.dev.cc.old
