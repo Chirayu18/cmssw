@@ -447,7 +447,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
                 uint16_t x = i % rowSize * valuesPerWord;  // 0..9 x 16    = 0, 16, 32, ..., 144
                 uint16_t y = i / rowSize;                  // 0..4159 / 10 = 0..415
                 // Get the corresponding padded coordinates
-                uint16_t paddedX = x + padding;
                 uint16_t paddedY = y + padding;
                 uint32_t paddedIndex = getPaddedIndex(x, y);
                 uint32_t value = paddedImage[paddedIndex];
@@ -455,10 +454,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
                 uint32_t below = (paddedY < paddedPixelSizeY - padding - 1) ? paddedImage[paddedIndex + paddedRowSize] : 0;
                 for (uint32_t j = 0; j < valuesPerWord; ++j) {
                   uint32_t shift = j * bits;
+                  // Process only fake (recovered) pixels.
                   if ((value >> shift & mask) == kFake) {
                     // With padding, we can always check all neighbors safely.
+                    // Check that the pixels to the left, above, below, and to the right are not empty.
                     if ((value >> (shift - bits) & mask) != kEmpty and (above >> shift & mask) != kEmpty and
                         (below >> shift & mask) != kEmpty and (value >> (shift + bits) & mask) != kEmpty) {
+                      // Create a fake pixel, up to maxFakesInModule pixels per module.
                       unsigned int index =
                           alpaka::atomicInc(acc, &fakePixels, 0xffffffff, alpaka::hierarchy::Threads{});
                       if (index < maxFakesInModule) {
