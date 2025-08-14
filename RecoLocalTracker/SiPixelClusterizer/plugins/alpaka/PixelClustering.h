@@ -453,79 +453,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
                 uint32_t value = paddedImage[paddedIndex];
                 uint32_t above = (paddedY > padding) ? paddedImage[paddedIndex - paddedRowSize] : 0;
                 uint32_t below = (paddedY < paddedPixelSizeY - padding - 1) ? paddedImage[paddedIndex + paddedRowSize] : 0;
-                // First pixel (j = 0)
-                {
-                  // shift = 0
-                  // Process only fake (recovered) pixels.
-                  if ((value & mask) == kFake) {
-                    // Check that the pixels to the left, above, below, and to the right are not empty.
-                    // With padding, we can always check all neighbors safely.
-                    Status left = (paddedX > padding) ? Status{paddedImage[paddedIndex - 1] >> ((valuesPerWord - 1) * bits) & mask} : kEmpty;
-                    Status right = (paddedX < paddedPixelSizeX - padding - 1) ? Status{value >> bits & mask} : kEmpty;
-                    if (left != kEmpty and (above & mask) != kEmpty and (below & mask) != kEmpty and right != kEmpty) {
-                      // Create a fake pixel, up to maxFakesInModule pixels per module.
-                      unsigned int index =
-                          alpaka::atomicInc(acc, &fakePixels, 0xffffffff, alpaka::hierarchy::Threads{});
-                      if (index < maxFakesInModule) {
-                        auto fake = fakes_view[firstFake + index];
-                        ALPAKA_ASSERT_ACC(fake.clus() == static_cast<int32_t>(numElements + firstFake + index));
-                        fake.xx() = x;
-                        fake.yy() = y;
-                        fake.moduleId() = thisModuleId;
-                      } else {
-                        printf("Too many pixels recovered by digi morphing in module %u: %u > %u\n",
-                               thisModuleId,
-                               index,
-                               maxFakesInModule);
-                      }
-                    }
-                  }
-                }
-                // Non-edge pixels (j = 1..14)
-                for (uint32_t j = 1; j < valuesPerWord - 1; ++j) {
+                for (uint32_t j = 0; j < valuesPerWord; ++j) {
                   uint32_t shift = j * bits;
-                  // Process only fake (recovered) pixels.
                   if ((value >> shift & mask) == kFake) {
-                    // Check that the pixels to the left, above, below, and to the right are not empty.
                     // With padding, we can always check all neighbors safely.
                     if ((value >> (shift - bits) & mask) != kEmpty and (above >> shift & mask) != kEmpty and
                         (below >> shift & mask) != kEmpty and (value >> (shift + bits) & mask) != kEmpty) {
-                      // Create a fake pixel, up to maxFakesInModule pixels per module.
                       unsigned int index =
                           alpaka::atomicInc(acc, &fakePixels, 0xffffffff, alpaka::hierarchy::Threads{});
                       if (index < maxFakesInModule) {
                         auto fake = fakes_view[firstFake + index];
                         ALPAKA_ASSERT_ACC(fake.clus() == static_cast<int32_t>(numElements + firstFake + index));
                         fake.xx() = x + j;
-                        fake.yy() = y;
-                        fake.moduleId() = thisModuleId;
-                      } else {
-                        printf("Too many pixels recovered by digi morphing in module %u: %u > %u\n",
-                               thisModuleId,
-                               index,
-                               maxFakesInModule);
-                      }
-                    }
-                  }
-                }
-                // Last pixel (j = 15)
-                {
-                  uint32_t shift = ((valuesPerWord - 1) * bits);
-                  // Process only fake (recovered) pixels.
-                  if ((value >> shift & mask) == kFake) {
-                    // Check that the pixels to the left, above, below, and to the right are not empty.
-                    // With padding, we can always check all neighbors safely.
-                    Status left = (paddedX < paddedPixelSizeX - padding - valuesPerWord) ? Status{value >> (shift - bits) & mask} : kEmpty;
-                    Status right = (paddedX < paddedPixelSizeX - padding - 1) ? Status{paddedImage[paddedIndex + 1] & mask} : kEmpty;
-                    if (left != kEmpty and (above >> shift & mask) != kEmpty and
-                        (below >> shift & mask) != kEmpty and right != kEmpty) {
-                      // Create a fake pixel, up to maxFakesInModule pixels per module.
-                      unsigned int index =
-                          alpaka::atomicInc(acc, &fakePixels, 0xffffffff, alpaka::hierarchy::Threads{});
-                      if (index < maxFakesInModule) {
-                        auto fake = fakes_view[firstFake + index];
-                        ALPAKA_ASSERT_ACC(fake.clus() == static_cast<int32_t>(numElements + firstFake + index));
-                        fake.xx() = x + valuesPerWord - 1;
                         fake.yy() = y;
                         fake.moduleId() = thisModuleId;
                       } else {
