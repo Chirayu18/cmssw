@@ -59,9 +59,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
     constexpr uint32_t pixelSizeY = pixelTopology::Phase1::numColsInModule;  // 8 x 52 = 416
     
     // Add padding for morphing operations to handle edge pixels
-    constexpr uint32_t padding = 1;  // 1 pixel padding on each side
-    constexpr uint32_t paddedPixelSizeX = pixelSizeX + 2 * padding;  // 162
-    constexpr uint32_t paddedPixelSizeY = pixelSizeY + 2 * padding;  // 418
+    constexpr uint32_t padding = 16;  // 16 pixel padding on each side for word alignment
+    constexpr uint32_t paddedPixelSizeX = pixelSizeX + 2 * padding;  // 192
+    constexpr uint32_t paddedPixelSizeY = pixelSizeY + 2 * padding;  // 448
 
     enum Status : uint32_t { kEmpty = 0x00, kFound = 0x01, kDuplicate = 0x03, kFake = 0x02 };
 
@@ -70,7 +70,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
     constexpr uint32_t mask = (0x01 << bits) - 1;
     constexpr uint32_t valuesPerWord = sizeof(uint32_t) * 8 / bits;     // 16 values per 32-bit word
     constexpr uint32_t size = pixelSizeX * pixelSizeY / valuesPerWord;  // 160 x 416 / 16 = 4160 32-bit words
-    constexpr uint32_t paddedSize = paddedPixelSizeX * paddedPixelSizeY / valuesPerWord;  // 162 x 418 / 16 = 4230 32-bit words
+    constexpr uint32_t paddedSize = paddedPixelSizeX * paddedPixelSizeY / valuesPerWord;  // 192 x 448 / 16 = 5376 32-bit words
 
     ALPAKA_FN_ACC ALPAKA_FN_INLINE constexpr uint32_t getIndex(uint16_t x, uint16_t y) {
       return (pixelSizeX * y + x) / valuesPerWord;
@@ -371,7 +371,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
             if (applyDigiMorphing) {
               using namespace pixelStatus;
               constexpr uint32_t rowSize = pixelSizeX / valuesPerWord;  // 160 / 16 = 10 words per row
-              constexpr uint32_t paddedRowSize = paddedPixelSizeX / valuesPerWord;  // 162 / 16 = 11 words per row
+              constexpr uint32_t paddedRowSize = paddedPixelSizeX / valuesPerWord;  // 192 / 16 = 12 words per row
 
               // Mark all duplicate pixels as empty in the padded image, to let the morphing attempt to recover them.
               for (uint32_t i : cms::alpakatools::independent_group_elements(acc, paddedSize)) {
@@ -393,19 +393,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
               // ......  ...............................................  .....
 
               // first step: expand and mark expanded pixels as kFake
-              // paddedSize = paddedPixelSizeX * paddedPixelSizeY / valuesPerWord;  // 162 x 418 / 16 = 4230 32-bit words
+              // paddedSize = paddedPixelSizeX * paddedPixelSizeY / valuesPerWord;  // 192 x 448 / 16 = 5376 32-bit words
               for (uint32_t i : cms::alpakatools::independent_group_elements(acc, paddedSize)) {
-                uint16_t wordInRow = i % paddedRowSize;                     // 0..10 (word position in row)
-                uint16_t x = wordInRow * valuesPerWord;                     // 0, 16, 32, ..., 160
-                uint16_t y = i / paddedRowSize;                             // 0..417 (row number)
+                uint16_t x = i % paddedRowSize * valuesPerWord;  // 0..11 x 16    = 0, 16, 32, ..., 176
+                uint16_t y = i / paddedRowSize;                  // 0..5376 / 12 = 0..447
                 uint32_t value = paddedImage[i];
-                
-                // Calculate how many pixels are actually valid in this word
-                uint32_t validPixels = valuesPerWord;
-                if (wordInRow == paddedRowSize - 1) {  // Last word in row
-                  validPixels = paddedPixelSizeX - (paddedRowSize - 1) * valuesPerWord;  // 162 - 10*16 = 2
-                }
-                
                 uint64_t buffer = static_cast<uint64_t>(value) << 2;
                 if (y > 0) {
                   // merge the word above
@@ -417,28 +409,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
                 }
                 if (x > 0) {
                   // extract the pixels from the previous column, and merge them in the buffer
-                  // Check if previous word is a partial word (last word in its row)
-                  uint32_t prevWordInRow = (i - 1) % paddedRowSize;
-                  bool prevWordIsPartial = (prevWordInRow == paddedRowSize - 1);
-                  
-                  if (!prevWordIsPartial) {
-                    // Safe to extract rightmost pixel from complete word (bits 30-31)
-                    buffer |= static_cast<uint64_t>(paddedImage[i - 1]) >> 30 & mask;
-                    if (y > 0)
-                      buffer |= static_cast<uint64_t>(paddedImage[i - paddedRowSize - 1]) >> 30 & mask;
-                    if (y < paddedPixelSizeY - 1)
-                      buffer |= static_cast<uint64_t>(paddedImage[i + paddedRowSize - 1]) >> 30 & mask;
-                  } else {
-                    // Previous word is partial - extract from the last valid pixel position
-                    // For 2 pixels: last pixel is at position 1, shift = 1*2 = 2 (bits 2-3)
-                    uint32_t lastValidPixelsInPrevWord = paddedPixelSizeX - (paddedRowSize - 1) * valuesPerWord;
-                    uint32_t lastValidShift = (lastValidPixelsInPrevWord - 1) * 2;  // For 2 pixels: shift = 2
-                    buffer |= static_cast<uint64_t>(paddedImage[i - 1]) >> lastValidShift & mask;
-                    if (y > 0)
-                      buffer |= static_cast<uint64_t>(paddedImage[i - paddedRowSize - 1]) >> lastValidShift & mask;
-                    if (y < paddedPixelSizeY - 1)
-                      buffer |= static_cast<uint64_t>(paddedImage[i + paddedRowSize - 1]) >> lastValidShift & mask;
-                  }
+                  buffer |= static_cast<uint64_t>(paddedImage[i - 1]) >> 30 & mask;
+                  if (y > 0)
+                    buffer |= static_cast<uint64_t>(paddedImage[i - paddedRowSize - 1]) >> 30 & mask;
+                  if (y < paddedPixelSizeY - 1)
+                    buffer |= static_cast<uint64_t>(paddedImage[i + paddedRowSize - 1]) >> 30 & mask;
                 }
                 if (x < paddedPixelSizeX - valuesPerWord) {
                   // extract the pixels from the following column, and merge them in the buffer
@@ -449,7 +424,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
                     buffer |= static_cast<uint64_t>(paddedImage[i + paddedRowSize + 1] & mask) << 34;
                 }
                 // mark kEmpty pixels as kFake if any neighbour is non-empty (kFound or kDuplicate)
-                for (uint32_t j = 0; j < validPixels; ++j) {  // Only process valid pixels in this word
+                for (uint32_t j = 0; j < valuesPerWord; ++j) {
                   uint32_t shift = j * 2;
                   // skip non-empty pixels
                   if (Status{(value >> shift) & mask} != kEmpty) {
