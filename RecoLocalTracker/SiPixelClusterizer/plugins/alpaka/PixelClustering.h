@@ -169,6 +169,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
 
       auto& lastPixel = alpaka::declareSharedVar<unsigned int, __COUNTER__>(acc);
       auto& fakePixels = alpaka::declareSharedVar<unsigned int, __COUNTER__>(acc);
+      auto& duplicatePixels = alpaka::declareSharedVar<unsigned int, __COUNTER__>(acc);
 #ifdef GPU_DEBUG
       auto& goodPixels = alpaka::declareSharedVar<uint32_t, __COUNTER__>(acc);
 #endif
@@ -196,6 +197,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
         lastPixel = numElements;
         const uint32_t firstFake = maxFakesInModule * block;
         fakePixels = 0;
+        duplicatePixels = 0;
 #ifdef GPU_DEBUG
         goodPixels = 0;
 #endif
@@ -302,6 +304,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
                 // noise. Accepting just one is also OK, any of them."
                 digi_view[i].moduleId() = ::pixelClustering::invalidModuleId;
                 digi_view[i].rawIdArr() = 0;
+                // Count duplicate pixels for monitoring
+                alpaka::atomicAdd(acc, &duplicatePixels, 1u, alpaka::hierarchy::Threads{});
               }
             }
             alpaka::syncBlockThreads(acc);
@@ -794,6 +798,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
         if (cms::alpakatools::once_per_block(acc)) {
           clus_view[thisModuleId].clusInModule() = foundClusters;
           clus_view[module].moduleId() = thisModuleId;
+          clus_view[thisModuleId].nFakeDigis() = fakePixels;              // Store fake digi count for monitoring
+          clus_view[thisModuleId].nDuplicatePixels() = duplicatePixels;   // Store duplicate pixel count for monitoring
+          clus_view[thisModuleId].rawId() = rawModuleId;                  // Store DetId for monitoring
 #ifdef GPU_DEBUG
           if (foundClusters > gMaxHit) {
             gMaxHit = foundClusters;
