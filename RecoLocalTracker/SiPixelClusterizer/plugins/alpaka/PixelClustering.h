@@ -275,8 +275,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
             for (uint32_t i = TrackerTraits::maxPixInModule + firstPixel; i < lastPixel; ++i) {
               if (digi_view[i].moduleId() != ::pixelClustering::invalidModuleId)
                 ++nValidStranded;
-              //digi_view[i].moduleId() = ::pixelClustering::invalidModuleId;
-              //digi_view[i].clus() = ::pixelClustering::invalidClusterId;
+              digi_view[i].moduleId() = ::pixelClustering::invalidModuleId;
+              digi_view[i].clus() = ::pixelClustering::invalidClusterId;
             }
             printf(
                 "Too many pixels in module %u (%u): range=%u valid=%u invalid=%u limit=%u stranded_valid=%u (dropped)\n",
