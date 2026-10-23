@@ -33,3 +33,13 @@
 <library file="Triplet.cc" name="Triplet">
   <flags EDM_PLUGIN="1"/>
 </library>
+
+<bin name="testPhase2DigiMorphing" file="alpaka/testPhase2DigiMorphing.dev.cc">
+  <use name="alpaka"/>
+  <use name="catch2"/>
+  <use name="DataFormats/SiPixelClusterSoA"/>
+  <use name="DataFormats/SiPixelDigiSoA"/>
+  <use name="Geometry/CommonTopologies"/>
+  <use name="HeterogeneousCore/AlpakaInterface"/>
+  <flags ALPAKA_BACKENDS="1"/>
+</bin>
