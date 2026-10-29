@@ -550,7 +550,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
 
             for (uint32_t firstCol = 0; firstCol < nCols; firstCol += morphing::stripCols) {
               // Skip the strips with no pixel within one column: they cannot have any fake pixel.
-              // The histogram is in shared memory, so all threads in the block take the same decision.
+              // The histogram is in shared memory and is not modified within the loop, so all threads in the block
+              // take the same decision.
               const uint32_t nearFirst = (firstCol > 0) ? firstCol - 1 : 0;
               const uint32_t nearLast = std::min(firstCol + morphing::stripCols + 1, nCols);
               if (hist.off[Hist::bin(nearLast)] == hist.off[Hist::bin(nearFirst)])
@@ -669,6 +670,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::pixelClustering {
               }
               alpaka::syncBlockThreads(acc);
             }  // strip loop
+            // A thread can leave the loop right after skipping the last strip, without a barrier: wait for all the
+            // threads to have read the histogram before it is cleared.
+            alpaka::syncBlockThreads(acc);
 
             // Clamp fakePixels to maxFakesInModule, and clear the histogram to fill it again
             if (cms::alpakatools::once_per_block(acc)) {
