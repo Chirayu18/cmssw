@@ -39,9 +39,8 @@ namespace siPixelMorphing {
           } else if (limits.size() == 1) {
             reg.push_back(std::make_pair(std::stoi(limits.at(0)), std::stoi(limits.at(0))));
           } else {
-            throw cms::Exception("Configuration")
-                << "[SiPixelDigiMorphing]:"
-                << " invalid range format in '" << r << "' (expected 'A' or 'A-B')\n";
+            throw cms::Exception("Configuration") << "[SiPixelDigiMorphing]:"
+                                                  << " invalid range format in '" << r << "' (expected 'A' or 'A-B')\n";
           }
         } catch (cms::Exception&) {
           throw;

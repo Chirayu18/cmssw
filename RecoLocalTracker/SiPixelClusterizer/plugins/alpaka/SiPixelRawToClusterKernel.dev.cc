@@ -707,11 +707,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #endif
       // allocate a transient collection for the fake pixels recovered by the digi morphing algorithm;
       // each block processes a single module, so only the morphing modules need space for fake pixels
-      auto fakes_d =
+      recoveredDigis_d =
           SiPixelDigisSoACollection(queue,
                                     digiMorphingConfig.applyDigiMorphing
                                         ? digiMorphingConfig.numMorphingModules * digiMorphingConfig.maxFakesInModule
                                         : 0);
+      // VALIDATION ONLY: mark all the slots as invalid, the morphing modules without pixels never touch theirs
+      if (recoveredDigis_d->view().metadata().size() > 0) {
+        auto moduleIds = cms::alpakatools::make_device_view(
+            alpaka::getDev(queue), recoveredDigis_d->view().moduleId(), recoveredDigis_d->view().metadata().size());
+        alpaka::memset(queue, moduleIds, static_cast<uint8_t>(0xff));
+      }
+      auto &fakes_d = *recoveredDigis_d;
 
       alpaka::exec<Acc1D>(queue,
                           workDivMaxNumModules,

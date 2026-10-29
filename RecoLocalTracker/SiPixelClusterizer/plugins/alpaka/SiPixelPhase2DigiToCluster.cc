@@ -59,6 +59,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     const edm::EDGetTokenT<edm::DetSetVector<PixelDigi>> pixelDigiToken_;
     const device::EDPutToken<SiPixelDigisSoACollection> digiPutToken_;
     const device::EDPutToken<SiPixelClustersSoACollection> clusterPutToken_;
+    // VALIDATION ONLY: put the pixels recovered by the digi morphing in the event
+    const bool produceRecovered_;
+    device::EDPutToken<SiPixelDigisSoACollection> recoveredPutToken_;
     const SiPixelClusterThresholds clusterThresholds_;
 
     SiPixelMorphingConfig digiMorphingConfig_;
@@ -85,6 +88,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         pixelDigiToken_(consumes<edm::DetSetVector<PixelDigi>>(iConfig.getParameter<edm::InputTag>("InputDigis"))),
         digiPutToken_(produces()),
         clusterPutToken_(produces()),
+        produceRecovered_(iConfig.getParameter<bool>("ValidationRecoveredDigis")),
         clusterThresholds_{iConfig.getParameter<int32_t>("clusterThreshold_layer1"),
                            iConfig.getParameter<int32_t>("clusterThreshold_otherLayers"),
                            static_cast<float>(iConfig.getParameter<double>("ElectronPerADCGain")),
@@ -95,6 +99,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             siPixelMorphing::parseRegions(iConfig.getParameter<std::vector<std::string>>("barrelRegions"), 3)),
         theEndcapRegions_(
             siPixelMorphing::parseRegions(iConfig.getParameter<std::vector<std::string>>("endcapRegions"), 4)) {
+    if (produceRecovered_)
+      recoveredPutToken_ = produces("recovered");
     digiMorphingConfig_.applyDigiMorphing = iConfig.getParameter<bool>("DoDigiMorphing");
     digiMorphingConfig_.maxFakesInModule = iConfig.getParameter<uint32_t>("MaxFakesInModule");
     digiMorphingConfig_.numMorphingModules = 0;
@@ -123,6 +129,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     desc.add<uint32_t>("Phase2KinkADC", 8);
     desc.add<edm::InputTag>("InputDigis", edm::InputTag("simSiPixelDigis:Pixel"));
     desc.add<bool>("DoDigiMorphing", false);
+    desc.add<bool>("ValidationRecoveredDigis", false);
     desc.add<uint32_t>("MaxFakesInModule", ::pixelClustering::phase2Morphing::defaultMaxFakesInModule);
     // LAYER,LADDER,MODULE (coordinates can also be specified as a range FIRST-LAST where appropriate)
     desc.add<std::vector<std::string>>("barrelRegions", {"1,1-99,1-99"})->setComment("default: the first layer");
@@ -273,6 +280,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     iEvent.emplace(digiPutToken_, std::move(*digis_d_));
     iEvent.emplace(clusterPutToken_, algo_.getClusters());
+    if (produceRecovered_)
+      iEvent.emplace(recoveredPutToken_,
+                     nDigis_ != 0 ? algo_.getRecoveredDigis() : SiPixelDigisSoACollection(iEvent.queue(), 0));
     digis_d_.reset();
   }
 

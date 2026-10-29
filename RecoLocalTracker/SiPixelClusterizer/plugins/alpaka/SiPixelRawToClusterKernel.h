@@ -194,6 +194,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
       SiPixelDigiErrorsSoACollection getErrors() { return std::move(*digiErrors_d); }
 
+      // VALIDATION ONLY: the pixels recovered by the Phase-2 digi morphing
+      SiPixelDigisSoACollection getRecoveredDigis() { return std::move(*recoveredDigis_d); }
+
       auto nModules() { return nModules_Clusters_h[0]; }
 
     private:
@@ -204,6 +207,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       std::optional<SiPixelDigisSoACollection> digis_d;
       std::optional<SiPixelClustersSoACollection> clusters_d;
       std::optional<SiPixelDigiErrorsSoACollection> digiErrors_d;
+      std::optional<SiPixelDigisSoACollection> recoveredDigis_d;
     };
 
   }  // namespace pixelDetails
